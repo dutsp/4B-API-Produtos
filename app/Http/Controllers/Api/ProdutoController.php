@@ -5,25 +5,30 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProdutoResource;
 use App\Models\Produto;
+use App\Repositories\ProdutoRepository;
 use App\Services\ProdutoService;
 use Illuminate\Http\Request;
 
 class ProdutoController extends Controller
 {
 
-    public function __construct(private ProdutoService $service) {}
+    public function __construct(
+        private ProdutoService $service,
+        private ProdutoRepository $repository,
+    ) {}
 
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        return ProdutoResource::collection(Produto::latest()->paginate(10));
+        $filtros = $request->validate([
+            'nome' => ['sometimes', 'string', 'max:255'],
+            'preco_min' => ['sometimes', 'numeric', 'min:0'],
+            'preco_max' => ['sometimes', 'numeric', 'min:0'],
+            'em_estoque' => ['sometimes', 'boolean'],
+        ]);
+
+        return ProdutoResource::collection($this->repository->search($filtros, 10));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $dados = $request->validate([
@@ -34,24 +39,16 @@ class ProdutoController extends Controller
             'quantidade' => 'sometimes|integer|min:0',
         ]);
 
-        // Cria o Produto (Model)
         $produto = $this->service->create($dados);
 
-        // Retorna um novo Recurso a cada requisição
         return new ProdutoResource($produto);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Produto $produto)
     {
         return new ProdutoResource($produto);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Produto $produto)
     {
         $dados = $request->validate([
@@ -62,16 +59,16 @@ class ProdutoController extends Controller
             'quantidade' => 'sometimes|integer|min:0',
         ]);
 
-        $produto->update($dados);
+        $produto = $this->service->update($produto, $dados);
 
         return new ProdutoResource($produto);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+
+    public function destroy(Produto $produto)
     {
-        //
+        $this->repository->delete($produto);
+
+        return response()->noContent();
     }
 }
